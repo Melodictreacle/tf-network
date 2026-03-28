@@ -5,7 +5,7 @@
 variable "docker_host" {
   description = "Docker daemon socket"
   type        = string
-  default     = "unix:///var/run/docker.sock"
+  default     = "npipe:////./pipe/docker_engine"
 }
 
 variable "project_name" {
@@ -81,6 +81,6 @@ variable "exposed_ports" {
     minio_ui  = 9001   # Host G - MinIO Console
     httpd     = 8082   # Host H - Apache httpd
     ldap      = 3389   # Host I - OpenLDAP
-    dns       = 5353   # Host J - BIND9
+    dns       = 5354   # Host J - BIND9
   }
 }

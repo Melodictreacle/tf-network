@@ -1,5 +1,5 @@
 # ==============================================================
-# main.tf — Provider, Images, Networks, Volumes
+# main.tf - Provider, Images, Networks, Volumes
 # ==============================================================
 #
 # Network Attack Matrix implemented via Docker network zones:
@@ -29,43 +29,98 @@ provider "docker" {
   host = var.docker_host
 }
 
-# ═══════════════════════════════════════════════════════════════
-#  Docker Images
-# ═══════════════════════════════════════════════════════════════
+# =================================================================
+#  Docker Images — Kali from Hub, all others built from source
+# =================================================================
 
 resource "docker_image" "kali" {
   name         = "kalilinux/kali-rolling:latest"
   keep_locally = true
 }
 
-resource "docker_image" "ubuntu" {
-  name         = "ubuntu:20.04"
-  keep_locally = true
+resource "docker_image" "host_a" {
+  name = "vuln-lab-mailgw"
+  build {
+    context    = "${path.module}/MailGW"
+    dockerfile = "Dockerfile"
+  }
 }
 
-resource "docker_image" "owncloud" {
-  name         = "owncloud/server:${var.owncloud_version}"
-  keep_locally = true
+resource "docker_image" "host_b" {
+  name = "vuln-lab-mailstore"
+  build {
+    context    = "${path.module}/MailSt"
+    dockerfile = "Dockerfile"
+  }
 }
 
-resource "docker_image" "minio" {
-  name         = "minio/minio:${var.minio_version}"
-  keep_locally = true
+resource "docker_image" "host_c" {
+  name = "vuln-lab-ftp"
+  build {
+    context    = "${path.module}/FTP"
+    dockerfile = "Dockerfile"
+  }
 }
 
-resource "docker_image" "httpd" {
-  name         = "httpd:${var.httpd_version}"
-  keep_locally = true
+resource "docker_image" "host_d" {
+  name = "vuln-lab-smb"
+  build {
+    context    = "${path.module}/SMB"
+    dockerfile = "Dockerfile"
+  }
 }
 
-resource "docker_image" "openldap" {
-  name         = "osixia/openldap:${var.openldap_version}"
-  keep_locally = true
+resource "docker_image" "host_e" {
+  name = "vuln-lab-backup"
+  build {
+    context    = "${path.module}/Backup"
+    dockerfile = "Dockerfile"
+  }
 }
 
-# ═══════════════════════════════════════════════════════════════
+resource "docker_image" "host_f" {
+  name = "vuln-lab-cloud"
+  build {
+    context    = "${path.module}/Cloud"
+    dockerfile = "Dockerfile"
+  }
+}
+
+resource "docker_image" "host_g" {
+  name = "vuln-lab-storage"
+  build {
+    context    = "${path.module}/ObjSto"
+    dockerfile = "Dockerfile"
+  }
+}
+
+resource "docker_image" "host_h" {
+  name = "vuln-lab-webdav"
+  build {
+    context    = "${path.module}/WebDAV"
+    dockerfile = "Dockerfile"
+  }
+}
+
+resource "docker_image" "host_i" {
+  name = "vuln-lab-ldap"
+  build {
+    context    = "${path.module}/DirAut"
+    dockerfile = "Dockerfile"
+  }
+}
+
+resource "docker_image" "host_j" {
+  name = "vuln-lab-netinfra"
+  build {
+    context    = "${path.module}/NetInf"
+    dockerfile = "Dockerfile"
+  }
+}
+
+# =================================================================
 #  Network Zones (matches Network_Attack_Paths matrix)
-# ═══════════════════════════════════════════════════════════════
+# =================================================================
 
 resource "docker_network" "perimeter" {
   name   = "${var.project_name}-perimeter"
@@ -157,9 +212,9 @@ resource "docker_network" "infra_zone" {
   }
 }
 
-# ═══════════════════════════════════════════════════════════════
+# =================================================================
 #  Volumes
-# ═══════════════════════════════════════════════════════════════
+# =================================================================
 
 resource "docker_volume" "owncloud_data" {
   name = "${var.project_name}-owncloud-data"
@@ -179,4 +234,8 @@ resource "docker_volume" "samba_data" {
 
 resource "docker_volume" "backup_data" {
   name = "${var.project_name}-backup-data"
+}
+
+resource "docker_volume" "owncloud_db" {
+  name = "${var.project_name}-owncloud-db"
 }
