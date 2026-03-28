@@ -1,0 +1,37 @@
+dn: dc=vuln-lab,dc=local
+objectClass: dcObject
+objectClass: organization
+dc: vuln-lab
+o: Vulnerable Lab Corp
+
+dn: ou=users,dc=vuln-lab,dc=local
+objectClass: organizationalUnit
+ou: users
+
+dn: cn=John Admin,ou=users,dc=vuln-lab,dc=local
+objectClass: inetOrgPerson
+cn: John Admin
+sn: Admin
+uid: jadmin
+mail: jadmin@vuln-lab.local
+userPassword: Sup3rS3cret!
+
+dn: cn=Alice Developer,ou=users,dc=vuln-lab,dc=local
+objectClass: inetOrgPerson
+cn: Alice Developer
+sn: Developer
+uid: adev
+mail: adev@vuln-lab.local
+userPassword: P@ssw0rd123
+
+dn: ou=services,dc=vuln-lab,dc=local
+objectClass: organizationalUnit
+ou: services
+
+dn: cn=owncloud-svc,ou=services,dc=vuln-lab,dc=local
+objectClass: inetOrgPerson
+cn: owncloud-svc
+sn: Service
+uid: owncloud
+mail: owncloud@vuln-lab.local
+userPassword: OwnCl0ud_DB_Pass!
