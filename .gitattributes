@@ -1,0 +1,10 @@
+# Force Unix line endings for all shell scripts, config files, and text
+# files that get copied into Linux Docker containers
+*.sh text eol=lf
+*.ldif text eol=lf
+*.conf text eol=lf
+*.cfg text eol=lf
+*.cnf text eol=lf
+*.py text eol=lf
+*.rb text eol=lf
+Dockerfile text eol=lf
