@@ -33,9 +33,12 @@ provider "docker" {
 #  Docker Images — Kali from Hub, all others built from source
 # =================================================================
 
-resource "docker_image" "kali" {
-  name         = "kalilinux/kali-rolling:latest"
-  keep_locally = true
+resource "docker_image" "attacker" {
+  name = "vuln-lab-attacker-image"
+  build {
+    context    = "${path.module}/Attacker"
+    dockerfile = "Dockerfile"
+  }
 }
 
 resource "docker_image" "host_a" {

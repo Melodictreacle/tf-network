@@ -10,7 +10,7 @@
 # | B MailSt | postfix      | mem_corruption_dos     | CVE-2011-1720   |
 # |          | dovecot      | unauth_access          | Config Flaw     |
 # | C FTP    | vsftpd       | malicious_backdoor_rce | CVE-2011-2523   |
-# | D SMB    | samba         | rce_sambacry           | CVE-2017-7494   |
+# | D SMB    | samba        | rce_sambacry           | CVE-2017-7494   |
 # | E Backup | rsync        | path_traversal_write   | CVE-2014-9512   |
 # |          | nfs          | unauth_root_squash     | Config Flaw     |
 # | F Cloud  | owncloud     | info_disclosure_api    | CVE-2023-49103  |
@@ -28,11 +28,16 @@
 resource "docker_container" "attacker" {
   name     = "${var.project_name}-attacker"
   hostname = "attacker"
-  image    = docker_image.kali.image_id
+  image    = docker_image.attacker.image_id
 
   command = ["sleep", "infinity"]
 
   networks_advanced { name = docker_network.perimeter.name }
+  networks_advanced { name = docker_network.mail_zone.name }
+  networks_advanced { name = docker_network.internal_zone.name }
+  networks_advanced { name = docker_network.storage_zone.name }
+  networks_advanced { name = docker_network.auth_zone.name }
+  networks_advanced { name = docker_network.infra_zone.name }
 
   labels {
     label = "project"
@@ -59,6 +64,11 @@ resource "docker_container" "host_a" {
   networks_advanced { name = docker_network.mail_zone.name }
   networks_advanced { name = docker_network.auth_zone.name }
   networks_advanced { name = docker_network.infra_zone.name }
+
+  ports {
+    internal = 25
+    external = var.exposed_ports["smtp"]
+  }
 
   labels {
     label = "project"
