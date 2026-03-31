@@ -19,6 +19,8 @@ RUN cd /tmp && tar xzf *.tar.gz \
     && CFLAGS="-Wno-error=deprecated-declarations -Wno-error" \
        make -j$(nproc) || make -j1 \
     && make install \
+    && echo "/usr/local/samba/lib" > /etc/ld.so.conf.d/samba.conf \
+    && ldconfig \
     && cd / && rm -rf /tmp/*
 
 # Create share directory
