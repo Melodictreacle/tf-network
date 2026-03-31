@@ -2,6 +2,23 @@
 # hosts.tf - All containers (Attacker + Hosts A-J)
 # ==============================================================
 #
+# 4-Network Architecture — Static IP Assignments:
+#
+# ┌─────────────────────────────────────────────────────────────┐
+# │  net_1 (10.10.1.0/24) — Perimeter / DMZ                    │
+# │    Attacker .10 │ A .11 │ C .13 │ E .15 │ F .16 │ H .18    │
+# │    J .20                                                    │
+# ├─────────────────────────────────────────────────────────────┤
+# │  net_2 (10.10.2.0/24) — Mail & Auth                        │
+# │    A .11 │ B .12 │ E .15 │ I .19                            │
+# ├─────────────────────────────────────────────────────────────┤
+# │  net_3 (10.10.3.0/24) — Internal / Compute                 │
+# │    C .13 │ D .14 │ E .15                                    │
+# ├─────────────────────────────────────────────────────────────┤
+# │  net_4 (10.10.4.0/24) — Storage & Cloud                    │
+# │    E .15 │ F .16 │ G .17 │ H .18                            │
+# └─────────────────────────────────────────────────────────────┘
+#
 # Host Vulnerability Details:
 # +----------+--------------+------------------------+-----------------+
 # | Host     | Services     | Vulnerability          | CVE / Flaw      |
@@ -23,6 +40,7 @@
 
 # =================================================================
 #  ATTACKER - Kali Linux (from Docker Hub)
+#  Networks: net_1 (10.10.1.10)
 # =================================================================
 
 resource "docker_container" "attacker" {
@@ -32,7 +50,10 @@ resource "docker_container" "attacker" {
 
   command = ["sleep", "infinity"]
 
-  networks_advanced { name = docker_network.perimeter.name }
+  networks_advanced {
+    name         = docker_network.net_1.name
+    ipv4_address = "10.10.1.10"
+  }
 
   labels {
     label = "project"
@@ -47,7 +68,7 @@ resource "docker_container" "attacker" {
 # =================================================================
 #  HOST A - Mail Gateway (OpenSMTPD 6.6.1p1)
 #  CVE-2020-7247 : OpenSMTPD auth bypass -> RCE
-#  Networks: perimeter, mail_zone, auth_zone, infra_zone
+#  Networks: net_1 (10.10.1.11), net_2 (10.10.2.11)
 # =================================================================
 
 resource "docker_container" "host_a" {
@@ -55,10 +76,14 @@ resource "docker_container" "host_a" {
   hostname = "host-a-mailgw"
   image    = docker_image.host_a.image_id
 
-  networks_advanced { name = docker_network.perimeter.name }
-  networks_advanced { name = docker_network.mail_zone.name }
-  networks_advanced { name = docker_network.auth_zone.name }
-  networks_advanced { name = docker_network.infra_zone.name }
+  networks_advanced {
+    name         = docker_network.net_1.name
+    ipv4_address = "10.10.1.11"
+  }
+  networks_advanced {
+    name         = docker_network.net_2.name
+    ipv4_address = "10.10.2.11"
+  }
 
   labels {
     label = "project"
@@ -78,7 +103,7 @@ resource "docker_container" "host_a" {
 #  HOST B - Mail Store (Postfix + Dovecot)
 #  CVE-2011-1720 : Postfix SMTP mem corruption DoS
 #  Config Flaw   : Dovecot unauthenticated access
-#  Networks: mail_zone, auth_zone
+#  Networks: net_2 (10.10.2.12)
 # =================================================================
 
 resource "docker_container" "host_b" {
@@ -86,8 +111,10 @@ resource "docker_container" "host_b" {
   hostname = "host-b-mailstore"
   image    = docker_image.host_b.image_id
 
-  networks_advanced { name = docker_network.mail_zone.name }
-  networks_advanced { name = docker_network.auth_zone.name }
+  networks_advanced {
+    name         = docker_network.net_2.name
+    ipv4_address = "10.10.2.12"
+  }
 
   labels {
     label = "project"
@@ -106,7 +133,7 @@ resource "docker_container" "host_b" {
 # =================================================================
 #  HOST C - Legacy FTP (vsftpd 2.3.4)
 #  CVE-2011-2523 : vsftpd 2.3.4 backdoor -> RCE
-#  Networks: perimeter, internal_zone, auth_zone
+#  Networks: net_1 (10.10.1.13), net_3 (10.10.3.13)
 # =================================================================
 
 resource "docker_container" "host_c" {
@@ -114,9 +141,14 @@ resource "docker_container" "host_c" {
   hostname = "host-c-ftp"
   image    = docker_image.host_c.image_id
 
-  networks_advanced { name = docker_network.perimeter.name }
-  networks_advanced { name = docker_network.internal_zone.name }
-  networks_advanced { name = docker_network.auth_zone.name }
+  networks_advanced {
+    name         = docker_network.net_1.name
+    ipv4_address = "10.10.1.13"
+  }
+  networks_advanced {
+    name         = docker_network.net_3.name
+    ipv4_address = "10.10.3.13"
+  }
 
   ports {
     internal = 21
@@ -140,7 +172,7 @@ resource "docker_container" "host_c" {
 # =================================================================
 #  HOST D - Internal SMB (Samba 3.5.0)
 #  CVE-2017-7494 : SambaCry -> RCE via writable share
-#  Networks: internal_zone
+#  Networks: net_3 (10.10.3.14)
 # =================================================================
 
 resource "docker_container" "host_d" {
@@ -148,7 +180,10 @@ resource "docker_container" "host_d" {
   hostname = "host-d-smb"
   image    = docker_image.host_d.image_id
 
-  networks_advanced { name = docker_network.internal_zone.name }
+  networks_advanced {
+    name         = docker_network.net_3.name
+    ipv4_address = "10.10.3.14"
+  }
 
   volumes {
     volume_name    = docker_volume.samba_data.name
@@ -173,7 +208,9 @@ resource "docker_container" "host_d" {
 #  HOST E - Backup Server (rsync 3.1.1 + SSH + NFS)
 #  CVE-2014-9512 : rsync path traversal write
 #  Config Flaw   : NFS no_root_squash
-#  Networks: mail_zone, internal_zone, storage_zone, auth_zone, infra_zone
+#  Networks: net_1 (10.10.1.15), net_2 (10.10.2.15),
+#            net_3 (10.10.3.15), net_4 (10.10.4.15)
+#  ** Bridges ALL 4 networks **
 # =================================================================
 
 resource "docker_container" "host_e" {
@@ -182,11 +219,22 @@ resource "docker_container" "host_e" {
   image      = docker_image.host_e.image_id
   privileged = true
 
-  networks_advanced { name = docker_network.mail_zone.name }
-  networks_advanced { name = docker_network.internal_zone.name }
-  networks_advanced { name = docker_network.storage_zone.name }
-  networks_advanced { name = docker_network.auth_zone.name }
-  networks_advanced { name = docker_network.infra_zone.name }
+  networks_advanced {
+    name         = docker_network.net_1.name
+    ipv4_address = "10.10.1.15"
+  }
+  networks_advanced {
+    name         = docker_network.net_2.name
+    ipv4_address = "10.10.2.15"
+  }
+  networks_advanced {
+    name         = docker_network.net_3.name
+    ipv4_address = "10.10.3.15"
+  }
+  networks_advanced {
+    name         = docker_network.net_4.name
+    ipv4_address = "10.10.4.15"
+  }
 
   volumes {
     volume_name    = docker_volume.backup_data.name
@@ -210,8 +258,8 @@ resource "docker_container" "host_e" {
 # =================================================================
 #  HOST F - Cloud Sync (OwnCloud)
 #  CVE-2023-49103 : graphapi info disclosure (phpinfo leak)
-#  Networks: perimeter, storage_zone, auth_zone
-#  DB + Cache provided by Host G (storage_zone)
+#  Networks: net_1 (10.10.1.16), net_4 (10.10.4.16)
+#  DB + Cache provided by Host G (net_4)
 # =================================================================
 
 resource "docker_container" "host_f" {
@@ -221,9 +269,14 @@ resource "docker_container" "host_f" {
 
   depends_on = [docker_container.host_g]
 
-  networks_advanced { name = docker_network.perimeter.name }
-  networks_advanced { name = docker_network.storage_zone.name }
-  networks_advanced { name = docker_network.auth_zone.name }
+  networks_advanced {
+    name         = docker_network.net_1.name
+    ipv4_address = "10.10.1.16"
+  }
+  networks_advanced {
+    name         = docker_network.net_4.name
+    ipv4_address = "10.10.4.16"
+  }
 
   ports {
     internal = 80
@@ -262,7 +315,7 @@ resource "docker_container" "host_f" {
 #  HOST G - Storage Server (MinIO + MariaDB + Redis)
 #  CVE-2023-28432 : MinIO environment variable info disclosure
 #  Provides: MariaDB (OwnCloud DB), Redis (OwnCloud cache), MinIO
-#  Networks: storage_zone
+#  Networks: net_4 (10.10.4.17)
 # =================================================================
 
 resource "docker_container" "host_g" {
@@ -270,7 +323,10 @@ resource "docker_container" "host_g" {
   hostname = "host-g-storage"
   image    = docker_image.host_g.image_id
 
-  networks_advanced { name = docker_network.storage_zone.name }
+  networks_advanced {
+    name         = docker_network.net_4.name
+    ipv4_address = "10.10.4.17"
+  }
 
   ports {
     internal = 9000
@@ -307,7 +363,7 @@ resource "docker_container" "host_g" {
 # =================================================================
 #  HOST H - WebDAV Share (Apache httpd 2.4.49)
 #  CVE-2021-41773 : path traversal -> RCE
-#  Networks: perimeter, storage_zone
+#  Networks: net_1 (10.10.1.18), net_4 (10.10.4.18)
 # =================================================================
 
 resource "docker_container" "host_h" {
@@ -315,8 +371,14 @@ resource "docker_container" "host_h" {
   hostname = "host-h-webdav"
   image    = docker_image.host_h.image_id
 
-  networks_advanced { name = docker_network.perimeter.name }
-  networks_advanced { name = docker_network.storage_zone.name }
+  networks_advanced {
+    name         = docker_network.net_1.name
+    ipv4_address = "10.10.1.18"
+  }
+  networks_advanced {
+    name         = docker_network.net_4.name
+    ipv4_address = "10.10.4.18"
+  }
 
   ports {
     internal = 80
@@ -340,7 +402,7 @@ resource "docker_container" "host_h" {
 # =================================================================
 #  HOST I - Directory Auth (OpenLDAP 2.4.18)
 #  Config Flaw : anonymous / null DN bind allows auth bypass
-#  Networks: auth_zone
+#  Networks: net_2 (10.10.2.19)
 # =================================================================
 
 resource "docker_container" "host_i" {
@@ -348,7 +410,10 @@ resource "docker_container" "host_i" {
   hostname = "host-i-ldap"
   image    = docker_image.host_i.image_id
 
-  networks_advanced { name = docker_network.auth_zone.name }
+  networks_advanced {
+    name         = docker_network.net_2.name
+    ipv4_address = "10.10.2.19"
+  }
 
   ports {
     internal = 389
@@ -378,7 +443,7 @@ resource "docker_container" "host_i" {
 #  HOST J - Network Infra (Squid 5.0.1 + BIND9)
 #  Config Flaw    : BIND9 unrestricted zone transfers
 #  CVE-2020-11945 : Squid digest auth cache poisoning
-#  Networks: perimeter, infra_zone
+#  Networks: net_1 (10.10.1.20)
 # =================================================================
 
 resource "docker_container" "host_j" {
@@ -386,8 +451,10 @@ resource "docker_container" "host_j" {
   hostname = "host-j-infra"
   image    = docker_image.host_j.image_id
 
-  networks_advanced { name = docker_network.perimeter.name }
-  networks_advanced { name = docker_network.infra_zone.name }
+  networks_advanced {
+    name         = docker_network.net_1.name
+    ipv4_address = "10.10.1.20"
+  }
 
   ports {
     internal = 53

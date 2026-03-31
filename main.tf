@@ -2,16 +2,23 @@
 # main.tf - Provider, Images, Networks, Volumes
 # ==============================================================
 #
-# Network Attack Matrix implemented via Docker network zones:
+# 4-Network Architecture:
 #
-#   perimeter     : Attacker, A, C, F, H, J    (DMZ / attacker-facing)
-#   mail_zone     : A, B, E                     (mail relay path)
-#   internal_zone : C, D, E                     (FTP/SMB segment)
-#   storage_zone  : E, F, G, H                  (storage/sync segment)
-#   auth_zone     : A, B, C, E, F, I            (LDAP authentication)
-#   infra_zone    : A, E, J                      (DNS / network infra)
+#   net_1 (10.10.1.0/24) — Perimeter / DMZ
+#         Attacker, A (MailGW), C (FTP), E (Backup),
+#         F (Cloud), H (WebDAV), J (NetInf)
 #
-# Host E (Backup) bridges all internal zones via SSH.
+#   net_2 (10.10.2.0/24) — Mail & Auth
+#         A (MailGW), B (MailSt), E (Backup), I (LDAP)
+#
+#   net_3 (10.10.3.0/24) — Internal / Compute
+#         C (FTP), D (SMB), E (Backup)
+#
+#   net_4 (10.10.4.0/24) — Storage & Cloud
+#         E (Backup), F (Cloud), G (ObjSto), H (WebDAV)
+#
+# Host E (Backup) bridges ALL 4 networks — compromise it for
+# full lateral movement across the entire lab.
 # ==============================================================
 
 terraform {
@@ -119,16 +126,16 @@ resource "docker_image" "host_j" {
 }
 
 # =================================================================
-#  Network Zones (matches Network_Attack_Paths matrix)
+#  4 Separate Networks
 # =================================================================
 
-resource "docker_network" "perimeter" {
-  name   = "${var.project_name}-perimeter"
+resource "docker_network" "net_1" {
+  name   = "${var.project_name}-net-1-perimeter"
   driver = "bridge"
 
   ipam_config {
-    subnet  = "172.20.0.0/24"
-    gateway = "172.20.0.1"
+    subnet  = "10.10.1.0/24"
+    gateway = "10.10.1.1"
   }
 
   labels {
@@ -137,28 +144,28 @@ resource "docker_network" "perimeter" {
   }
 }
 
-resource "docker_network" "mail_zone" {
-  name   = "${var.project_name}-mail-zone"
+resource "docker_network" "net_2" {
+  name   = "${var.project_name}-net-2-mail-auth"
   driver = "bridge"
 
   ipam_config {
-    subnet  = "172.20.1.0/24"
-    gateway = "172.20.1.1"
+    subnet  = "10.10.2.0/24"
+    gateway = "10.10.2.1"
   }
 
   labels {
     label = "zone"
-    value = "mail"
+    value = "mail-auth"
   }
 }
 
-resource "docker_network" "internal_zone" {
-  name   = "${var.project_name}-internal-zone"
+resource "docker_network" "net_3" {
+  name   = "${var.project_name}-net-3-internal"
   driver = "bridge"
 
   ipam_config {
-    subnet  = "172.20.2.0/24"
-    gateway = "172.20.2.1"
+    subnet  = "10.10.3.0/24"
+    gateway = "10.10.3.1"
   }
 
   labels {
@@ -167,48 +174,18 @@ resource "docker_network" "internal_zone" {
   }
 }
 
-resource "docker_network" "storage_zone" {
-  name   = "${var.project_name}-storage-zone"
+resource "docker_network" "net_4" {
+  name   = "${var.project_name}-net-4-storage"
   driver = "bridge"
 
   ipam_config {
-    subnet  = "172.20.3.0/24"
-    gateway = "172.20.3.1"
+    subnet  = "10.10.4.0/24"
+    gateway = "10.10.4.1"
   }
 
   labels {
     label = "zone"
     value = "storage"
-  }
-}
-
-resource "docker_network" "auth_zone" {
-  name   = "${var.project_name}-auth-zone"
-  driver = "bridge"
-
-  ipam_config {
-    subnet  = "172.20.4.0/24"
-    gateway = "172.20.4.1"
-  }
-
-  labels {
-    label = "zone"
-    value = "auth"
-  }
-}
-
-resource "docker_network" "infra_zone" {
-  name   = "${var.project_name}-infra-zone"
-  driver = "bridge"
-
-  ipam_config {
-    subnet  = "172.20.5.0/24"
-    gateway = "172.20.5.1"
-  }
-
-  labels {
-    label = "zone"
-    value = "infra"
   }
 }
 
