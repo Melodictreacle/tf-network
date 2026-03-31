@@ -46,7 +46,7 @@
 resource "docker_container" "attacker" {
   name     = "${var.project_name}-attacker"
   hostname = "attacker"
-  image    = docker_image.kali.image_id
+  image    = docker_image.attacker.image_id
 
   command = ["sleep", "infinity"]
 
