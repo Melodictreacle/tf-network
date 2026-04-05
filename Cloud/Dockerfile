@@ -5,7 +5,7 @@ ENV DEBIAN_FRONTEND=noninteractive
 RUN apt-get update && apt-get install -y --no-install-recommends \
     apache2 libapache2-mod-php php-mysql php-gd php-curl php-zip \
     php-xml php-mbstring php-intl php-json php-bz2 php-redis \
-    bzip2 curl \
+    bzip2 curl sudo \
     && rm -rf /var/lib/apt/lists/*
 
 # Extract OwnCloud application (CVE-2023-49103 — graphapi info disclosure)
