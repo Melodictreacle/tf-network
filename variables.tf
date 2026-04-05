@@ -74,13 +74,6 @@ variable "exposed_ports" {
   description = "Ports exposed to the Docker host for management access"
   type        = map(number)
   default = {
-    smtp      = 2525   # Host A - OpenSMTPD
-    ftp       = 2121   # Host C - vsftpd
-    owncloud  = 8443   # Host F - OwnCloud
-    minio_api = 9000   # Host G - MinIO API
-    minio_ui  = 9001   # Host G - MinIO Console
-    httpd     = 8082   # Host H - Apache httpd
-    ldap      = 3389   # Host I - OpenLDAP
-    dns       = 5354   # Host J - BIND9
+    website   = 8888   # DMZ   - VulnCorp Website
   }
 }

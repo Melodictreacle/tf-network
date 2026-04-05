@@ -4,8 +4,9 @@
 
 # -- Network Zones
 output "network_zones" {
-  description = "Docker network zones (4 separate networks)"
+  description = "Docker network zones (DMZ + 4 internal)"
   value = {
+    dmz             = docker_network.dmz.name
     net_1_perimeter = docker_network.net_1.name
     net_2_mail_auth = docker_network.net_2.name
     net_3_internal  = docker_network.net_3.name
@@ -18,6 +19,8 @@ output "containers" {
   description = "All lab containers"
   value = {
     attacker                = docker_container.attacker.name
+    "website (VulnCorp)"    = docker_container.website.name
+    "firewall (Gateway)"    = docker_container.firewall.name
     "host_a (Mail Gateway)" = docker_container.host_a.name
     "host_b (Mail Store)"   = docker_container.host_b.name
     "host_c (Legacy FTP)"   = docker_container.host_c.name
@@ -41,10 +44,7 @@ output "attacker_shell" {
 output "management_urls" {
   description = "Services exposed to the Docker host"
   value = {
-    "Host F - OwnCloud"      = "http://localhost:${var.exposed_ports["owncloud"]}"
-    "Host G - MinIO Console"  = "http://localhost:${var.exposed_ports["minio_ui"]}"
-    "Host G - MinIO API"      = "http://localhost:${var.exposed_ports["minio_api"]}"
-    "Host H - Apache httpd"   = "http://localhost:${var.exposed_ports["httpd"]}"
+    "VulnCorp Website"       = "http://localhost:${var.exposed_ports["website"]}"
   }
 }
 
@@ -53,60 +53,57 @@ output "static_ips" {
   description = "Static IP assignments per host per network"
   value = <<-IPS
 
-    ┌─────────────────────────────────────────────────────────────────────┐
-    │                    STATIC IP ASSIGNMENTS                           │
-    ├──────────┬──────────────┬──────────────┬──────────────┬────────────┤
-    │  Host    │  net_1       │  net_2       │  net_3       │  net_4     │
-    │          │  10.10.1.x   │  10.10.2.x   │  10.10.3.x   │ 10.10.4.x │
-    ├──────────┼──────────────┼──────────────┼──────────────┼────────────┤
-    │ Attacker │  .10         │     —        │     —        │    —       │
-    │ Host A   │  .11         │    .11       │     —        │    —       │
-    │ Host B   │   —          │    .12       │     —        │    —       │
-    │ Host C   │  .13         │     —        │    .13       │    —       │
-    │ Host D   │   —          │     —        │    .14       │    —       │
-    │ Host E   │  .15         │    .15       │    .15       │   .15      │
-    │ Host F   │  .16         │     —        │     —        │   .16      │
-    │ Host G   │   —          │     —        │     —        │   .17      │
-    │ Host H   │  .18         │     —        │     —        │   .18      │
-    │ Host I   │   —          │    .19       │     —        │    —       │
-    │ Host J   │  .20         │     —        │     —        │    —       │
-    └──────────┴──────────────┴──────────────┴──────────────┴────────────┘
+    ┌──────────────────────────────────────────────────────────────────────────────┐
+    │                         STATIC IP ASSIGNMENTS                              │
+    ├──────────┬────────────┬──────────────┬──────────────┬──────────┬────────────┤
+    │  Host    │  DMZ       │  net_1       │  net_2       │  net_3   │  net_4     │
+    │          │  10.10.0.x │  10.10.1.x   │  10.10.2.x   │ 10.10.3.x│ 10.10.4.x │
+    ├──────────┼────────────┼──────────────┼──────────────┼──────────┼────────────┤
+    │ Attacker │  .10       │     —        │     —        │    —     │    —       │
+    │ Website  │  .2        │     —        │     —        │    —     │    —       │
+    │ Firewall │  .3        │    .3        │    .3        │   .3     │   .3       │
+    │ Host A   │   —        │   .11        │   .11        │    —     │    —       │
+    │ Host B   │   —        │    —         │   .12        │    —     │    —       │
+    │ Host C   │   —        │   .13        │    —         │   .13    │    —       │
+    │ Host D   │   —        │    —         │    —         │   .14    │    —       │
+    │ Host E   │   —        │   .15        │   .15        │   .15    │   .15      │
+    │ Host F   │   —        │   .16        │    —         │    —     │   .16      │
+    │ Host G   │   —        │    —         │    —         │    —     │   .17      │
+    │ Host H   │   —        │   .18        │    —         │    —     │   .18      │
+    │ Host I   │   —        │    —         │   .19        │    —     │    —       │
+    │ Host J   │   —        │   .20        │    —         │    —     │    —       │
+    └──────────┴────────────┴──────────────┴──────────────┴──────────┴────────────┘
   IPS
 }
 
 # -- Attack Path Quick Reference
 output "attack_paths" {
-  description = "Network attack paths across the 4 networks"
+  description = "Network attack paths across DMZ + 4 internal networks"
   value = <<-MATRIX
 
     +-----------------------------------------------------------------------------+
-    |                   NETWORK ATTACK PATHS (4-Network Layout)                   |
+    |                 NETWORK ATTACK PATHS (DMZ + 4 Internal)                     |
     +-----------------------------------------------------------------------------+
-    |  net_1 (Perimeter)  Attacker can reach: A, C, E, F, H, J                    |
+    |  STEP 1: Break into the DMZ                                                 |
+    |  Attacker -> Website (http)     /.maintenance.php backdoor                  |
+    |  Attacker -> Firewall (ssh)     root:toor weak credentials                  |
     +-----------------------------------------------------------------------------+
-    |  Attacker -> Host A (smtp)   via net_1                                      |
-    |  Attacker -> Host C (ftp)    via net_1                                      |
-    |  Attacker -> Host F (https)  via net_1                                      |
-    |  Attacker -> Host H (httpd)  via net_1                                      |
-    |  Attacker -> Host J (dns)    via net_1                                      |
-    |  Attacker -> Host E (rsync)  via net_1                                      |
+    |  STEP 2: Pivot from Firewall into internal networks                         |
+    |  Firewall is on ALL 5 networks — once compromised, reach anything:          |
+    |    -> net_1: Host A (.11), C (.13), E (.15), F (.16), H (.18), J (.20)      |
+    |    -> net_2: Host A (.11), B (.12), E (.15), I (.19)                        |
+    |    -> net_3: Host C (.13), D (.14), E (.15)                                 |
+    |    -> net_4: Host E (.15), F (.16), G (.17), H (.18)                        |
     +-----------------------------------------------------------------------------+
-    |  net_2 (Mail & Auth)  A <-> B, A <-> I, B <-> I, E <-> all                  |
-    |  Host A -> Host B (smtp)    via net_2                                       |
-    |  Host A -> Host I (ldap)    via net_2                                       |
-    |  Host B -> Host I (ldap)    via net_2                                       |
+    |  STEP 3: Lateral movement inside internal networks                          |
+    |  Host A -> Host B (smtp)      via net_2                                     |
+    |  Host A -> Host I (ldap)      via net_2                                     |
+    |  Host C -> Host D (smb)       via net_3                                     |
+    |  Host C -> Host E (nfs)       via net_3                                     |
+    |  Host F -> Host G (http)      via net_4                                     |
+    |  Host H -> Host E (rsync)     via net_4                                     |
     +-----------------------------------------------------------------------------+
-    |  net_3 (Internal)  C <-> D, C <-> E, D <-> E                                |
-    |  Host C -> Host D (smb)     via net_3                                       |
-    |  Host C -> Host E (nfs)     via net_3                                       |
-    |  Host D -> Host E (nfs)     via net_3                                       |
-    +-----------------------------------------------------------------------------+
-    |  net_4 (Storage)  E <-> F, E <-> G, E <-> H, F <-> G, F <-> H, G <-> H     |
-    |  Host F -> Host G (http)    via net_4                                       |
-    |  Host F -> Host E (rsync)   via net_4                                       |
-    |  Host H -> Host E (rsync)   via net_4                                       |
-    +-----------------------------------------------------------------------------+
-    |  Host E -> ALL hosts — bridges every network (God-mode pivot)               |
+    |  Host E -> ALL internal hosts — bridges net_1/2/3/4 (God-mode)             |
     +-----------------------------------------------------------------------------+
   MATRIX
 }

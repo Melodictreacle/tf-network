@@ -1,8 +1,8 @@
 # Exploring Vulnerable Infrastructure: A Terraform & Docker Playground
 
-Welcome to the lab! 🚀 Over the last few days, I've built out this fully containerized, intentionally vulnerable network environment. This project uses Terraform and Docker to automatically spin up 11 different machines across a segmented network architecture.
+Welcome to the lab! 🚀 Over the last few days, I've built out this fully containerized, intentionally vulnerable network environment. This project uses Terraform and Docker to automatically spin up a completely segmented, realistically-architected enterprise network containing multiple vulnerable services.
 
-Every single container here runs a different piece of vulnerable software – mostly compiled from actual source tarballs (like Apache, Samba, OpenLDAP, etc.) just to see how real-world CVEs behave in action. It's the perfect isolated playground to test lateral movement, pivoting, and classic exploits.
+Every single container here runs a different piece of vulnerable software – either compiled from actual source tarballs (like Apache, Samba, OpenLDAP, etc.) or configured with intentional flaws. It's the perfect isolated playground to test lateral movement, pivoting, and classic exploits.
 
 **⚠️ DISCLAIMER:** *This environment is intentionally packed with backdoor exploits and critical vulnerabilities. Do not deploy this on an internet-facing machine, or anywhere near production. Run it locally and tear it down when you're done.*
 
@@ -10,30 +10,30 @@ Every single container here runs a different piece of vulnerable software – mo
 
 ## 🗺️ The Network Layout
 
-To make things interesting, the lab isn’t just a flat network. It's properly segmented into 6 security zones. The goal is to start on the outside and find a way into the core.
+To make things realistic, the lab is strictly segmented into a **DMZ and 4 internal networks**. 
+The Attacker starts on the outside (the DMZ) and must find a way to pivot through the firewall or public-facing website to reach the internal core.
 
 ```text
-                        ┌────────────────────────────────────────┐
-                        │              PERIMETER ZONE            │
-                        │   Attacker ── A ── C ── F ── H ── J    │
-                        └────┬────────┬───┬───┬────┬────┬────────┘
-                             │        │   │   │    │    │
-                    ┌────────┘  ┌─────┘   │   │    │    └────────┐
-                    ▼           ▼         ▼   ▼    ▼             ▼
-              ┌──────────┐ ┌────────┐     │   │    │      ┌──────────┐
-              │MAIL ZONE │ │INTERNAL│     │   │    │      │INFRA ZONE│
-              │ A  B  E  │ │ C  D  E│     │   │    │      │  A  E  J │
-              └──────────┘ └────────┘     │   │    │      └──────────┘
-                                          │   │    │
-                                    ┌─────┘   │    └─────┐
-                                    ▼         ▼          ▼
-                              ┌───────────┐ ┌────────────────┐
-                              │ AUTH ZONE │ │  STORAGE ZONE  │
-                              │A B C E F I│ │   E  F  G  H   │
-                              └───────────┘ └────────────────┘
+    INTERNET (Attacker: 10.10.0.10)
+         │
+    ┌────▼──────────────────────────────────────┐
+    │         DMZ (10.10.0.0/24)                │
+    │   Attacker .10  │  Website .2             │
+    │                 │  Firewall .3             │
+    └─────────────────┼─────────────────────────┘
+                      │ Firewall bridges all 4 networks
+        ┌─────────────┼──────────────┐
+        │             │              │
+   ┌────▼────┐  ┌─────▼────┐  ┌─────▼────┐  ┌──────────┐
+   │ net_1   │  │  net_2   │  │  net_3   │  │  net_4   │
+   │Perimeter│  │Mail/Auth │  │Internal  │  │ Storage  │
+   │10.10.1.x│  │10.10.2.x │  │10.10.3.x │  │10.10.4.x │
+   └─────────┘  └──────────┘  └──────────┘  └──────────┘
+    A,C,E,       A,B,E,I        C,D,E         E,F,G,H
+    F,H,J
 ```
 
-Notice **Host E (Backup)**? It acts as the bridge across the internal subnets. Compromise that box, and you basically hold the keys to the entire kingdom.
+Notice **Host E (Backup)**? It acts as the bridge across all internal subnets. Compromise that box, and you basically hold the keys to the entire internal kingdom. But first, you have to get past the DMZ.
 
 ---
 
@@ -41,29 +41,36 @@ Notice **Host E (Backup)**? It acts as the bridge across the internal subnets. C
 
 Here's exactly what's inside each container and why it's dangerous:
 
-| Host Name | Inside the Box | Built using | The Flaw | Exposed Ports |
-|-----------|----------------|-------------|----------|---------------|
-| **Attacker** | Kali Linux | Docker Hub | — | — |
-| **Host A** (Mail GW) | OpenSMTPD 6.6.x | Apt source | **CVE-2020-7247** (RCE Auth Bypass) | 25 |
-| **Host B** (Mail Store)| Postfix + Dovecot | Tarball + Apt | **CVE-2011-1720** (Memory Corruption) | 25, 110, 143 |
-| **Host C** (FTP) | vsftpd 2.3.4 | Compiled from Source | **CVE-2011-2523** (The infamous Smiley Backdoor) | 2121 → 21 |
-| **Host D** (Internal SMB)| Samba 3.5.0 | Compiled from Source | **CVE-2017-7494** ("SambaCry" RCE) | 139, 445 |
-| **Host E** (Backup) | rsync 3.1.1 + SSH | Compiled from Source | **CVE-2014-9512** (Path Traversal) | 22, 873, 2049 |
-| **Host F** (Cloud Sync) | OwnCloud 10.x | Tarball Extraction | **CVE-2023-49103** (phpinfo() Leak) | 8443 → 80 |
-| **Host G** (Storage) | MinIO + MariaDB + Redis | Compiled via Go Builder | **CVE-2023-28432** (Info Disclosure) | 9000, 9001 |
-| **Host H** (WebDAV) | Apache httpd 2.4.49| Compiled from Source | **CVE-2021-41773** (Path Traversal RCE) | 8082 → 80 |
-| **Host I** (Directory) | OpenLDAP 2.4.18 | Compiled from Source | **Null DN / Anonymous Bind Bypass** | 3389 → 389 |
-| **Host J** (Network Infra)| Squid 5.0.1 + BIND9 | Compiled from Source | **CVE-2020-11945** (Cache Poisoning) | 5354 → 53 |
+### Perimeter / Entry Points
+| Host Name | Inside the Box | The Flaw | Exposed Ports |
+|-----------|----------------|----------|---------------|
+| **Attacker** | Kali Linux | — (Your machine) | — |
+| **Website** | Apache + PHP 7.4 | **Hidden Backdoor** (Command Injection) | 8888 → 80 |
+| **Firewall** | Alpine + OpenSSH | **Config Flaw** (Weak `root:toor` creds) | 22 |
+
+### Internal Services
+| Host Name | Inside the Box | The Flaw |
+|-----------|----------------|----------|
+| **Host A** (Mail GW) | OpenSMTPD 6.6.x | **CVE-2020-7247** (RCE Auth Bypass) |
+| **Host B** (Mail Store)| Postfix + Dovecot | **CVE-2011-1720** (Memory Corruption) & Config Flaw |
+| **Host C** (FTP) | vsftpd 2.3.4 | **CVE-2011-2523** (The infamous Smiley Backdoor) |
+| **Host D** (Internal SMB)| Samba 3.5.0 | **CVE-2017-7494** ("SambaCry" RCE) |
+| **Host E** (Backup) | rsync 3.1.1 + SSH | **CVE-2014-9512** (Path Traversal) & NFS root_squash Flaw |
+| **Host F** (Cloud Sync) | OwnCloud 10.x | **CVE-2023-49103** (phpinfo() Leak) |
+| **Host G** (Storage) | MinIO + MariaDB + Redis | **CVE-2023-28432** (Info Disclosure) |
+| **Host H** (WebDAV) | Apache httpd 2.4.49| **CVE-2021-41773** (Path Traversal RCE) |
+| **Host I** (Directory) | OpenLDAP 2.4.18 | **Null DN / Anonymous Bind Bypass** |
+| **Host J** (Network Infra)| Squid 5.0.1 + BIND9 | **CVE-2020-11945** (Cache Poisoning) |
 
 ---
 
 ## 🛠️ Getting the Lab Running
 
-You'll need `Docker` and `Terraform` (v1.3.0+) installed on your machine. All source codes and setup files are included in the repository structure.
+You'll need `Docker` and `Terraform` (v1.3.0+) installed on your machine. All source code and setup files are included in the repository structure.
 
 ### 1. Fire It Up
 
-Spinning up 11 custom-compiled machines naturally takes a minute or two on the first run. Pop open your terminal and run:
+Pop open your terminal and run:
 
 ```bash
 # Initialize terraform plugins
@@ -72,89 +79,96 @@ terraform init
 # Build the images and spin up the architecture
 terraform apply -auto-approve
 ```
-*(The very first time you run this, Terraform will download compiling tools like Go, GCC, and Make into the Docker images. Grab a coffee! Afterwards, Docker reuses its cache and builds take seconds.)*
+*(The first run will download base images and compile tools like Go, GCC, and Make into the Docker images. Grab a coffee! Afterwards, Docker reuses its cache and builds take seconds.)*
 
 ### 2. Verify Services & Access Points
 
-Once Terraform finishes, you should have 11 containers running. You can check their status using Docker:
-```bash
-docker ps --format "table {{.Names}}\t{{.Status}}\t{{.Ports}}"
-```
-
-Here is exactly how to check and connect to every single vulnerable service in the lab.
-
 #### 🌐 Web Interfaces (Accessible from your Host browser)
-* **Host F (OwnCloud):** `http://localhost:8443` (Default login: `admin` / `admin`)
-* **Host G (MinIO Console):** `http://localhost:9001` (Login: `minioadmin` / `minioadmin123`)
-* **Host G (MinIO API):** `http://localhost:9000/minio/health/live` (Should return 200 OK)
-* **Host H (Apache httpd):** `http://localhost:8082` (Will show "It works!" or directory listing)
+* **VulnCorp Website (DMZ):** `http://localhost:8888`
 
-#### 💻 Network Protocols (Accessible from your Host terminal)
-* **Host C (vsftpd FTP):** `ftp localhost 2121` (or `nc localhost 2121`)
-  * *Try sending `USER backdoor:)` to see what happens!*
-* **Host I (OpenLDAP):** 
-  * Query the directory anonymously: `ldapsearch -x -H ldap://localhost:3389 -b "dc=vuln-lab,dc=local" "(objectClass=*)"`
-* **Host J (DNS):**
-  * Check if BIND9 is answering queries: `dig @localhost -p 5354 google.com`
+*(Note: In "Hardcore Mode", all internal web interfaces like OwnCloud and MinIO are deliberately isolated from your host browser. You must pivot through the DMZ to access them!)*
 
 #### 🥷 The Attacker Entry Point
-Most of the interior servers (like Samba, Rsync, SMTP) are deliberately **not mapped to your localhost**. To interact with them, you must jump into the Kali Linux "Attacker" container, which acts as your jumpbox physically wired into the lab's perimeter.
+
+Almost all servers are deeply hidden inside the segmented internal networks (`10.10.x.0/24`). To interact with them, you must jump into the Kali Linux "Attacker" container, which sits strictly in the **DMZ (`10.10.0.0/24`)**.
 
 **To drop into the attacker shell:**
 ```bash
 docker exec -it vuln-lab-attacker bash
 ```
 
-Once inside `vuln-lab-attacker`, you can ping or run tools against the interior services using their Docker network hostnames:
-* **Check Host A (OpenSMTPD):** `nc -v vuln-lab-host-a 25`
-* **Check Host B (Postfix/Dovecot):** `nc -v vuln-lab-host-b 110` (or ports 25, 143)
-* **Check Host D (Samba):** `smbclient -L //vuln-lab-host-d/ -N`
-* **Check Host E (Rsync/SSH):** `rsync vuln-lab-host-e::`
+Once inside `vuln-lab-attacker`, you will notice you **cannot ping internal hosts** like Host A (`10.10.1.11`). You can only see the DMZ hosts: the VulnCorp Website (`10.10.0.2`) and the Firewall (`10.10.0.3`). 
 
-### 3. Firing the Exploit Scripts
+**You must compromise a DMZ host and pivot.**
 
-Some hosts have pre-packaged exploit scripts located in their respective source folders. When Terraform builds the images, it copies these exploits directly into the `/exploits/` directory of the target container.
+---
 
-However, the realistic way to use them is to run them *from the attacker container*. 
-For example, to run the Apache Path Traversal exploit:
-1. Copy the script from your local machine to the attacker:
-   ```bash
-   docker cp WebDAV/httpd/50383.sh vuln-lab-attacker:/root/
-   ```
-2. Run it against Host H from the attacker shell:
-   ```bash
-   docker exec -it vuln-lab-attacker bash
-   chmod +x /root/50383.sh
-   /root/50383.sh vuln-lab-host-h
-   ```
+## 🏫 Real-World Enterprise Concepts Demonstrated
 
-### 4. Shutting Down
+This lab simulates real enterprise architecture. As you play, keep these core concepts in mind:
 
-When you're finished experimenting, safely tear down the infrastructure to free up memory:
+### 1. The Three-Legged Firewall
+Notice how the firewall acts as the absolute center of the network. A real enterprise uses a "Three-Legged Firewall" architecture:
+* **Leg 1 (Untrusted):** The public Internet.
+* **Leg 2 (Semi-Trusted):** The **DMZ** (where public-facing web servers live).
+* **Leg 3 (Trusted):** The **Internal Networks** (where databases and employee laptops are).
+If a real firewall allows unrestricted traffic between these legs, it defeats the purpose of the firewall. 
+
+### 2. Egress Traffic Flaws
+In this lab, the firewall is dangerously misconfigured: it allows all outgoing (Egress) traffic from the internal networks to the outside. Hackers love this! If you compromise an internal server, you can tell it to open a "Reverse Shell" back to your attacker machine. Because the firewall trusts all outgoing traffic blindly, it lets the connection right through! *Modern "Zero Trust" networks fix this by aggressively blocking outgoing traffic too.*
+
+### 3. Pivoting via Proxychains / SSH Tunnels
+To hack the internal servers, you must route your packets *through* the firewall. 
+For example, if you compromise the Firewall (`10.10.0.3`) by finding its weak OpenSSH password (`root:toor`), you can set up a local proxy tunnel:
+`ssh -D 9050 root@10.10.0.3`
+You can now use tools like `proxychains` on your attacker machine to force all your nmap scans and curl requests to travel through the firewall gateway and into the internal networks!
+
+---
+
+## ⚔️ Fun Attack Paths to Try
+
+If you're wondering where to start, here is the intended attack progression:
+
+### Phase 1: Break into the DMZ
+1. **The Web Backdoor**: Investigate the VulnCorp Website (`http://10.10.0.2` from the attacker container). Can you find the hidden `.maintenance.php` backdoor? 
+2. **The Lazy Admin**: The firewall container (`10.10.0.3`) has an OpenSSH service running. Maybe they left the default `root:toor` password intact?
+
+### Phase 2: Pivot to Internal Subnets
+Once you compromise the Firewall (which bridges the DMZ to `net_1`, `net_2`, `net_3`, and `net_4`), you can use it as a jumpbox.
 ```bash
-terraform destroy -auto-approve
+# Example: ssh into the compromised firewall from the attacker machine
+ssh root@10.10.0.3
 ```
+
+From the firewall, you now have direct line-of-sight to the internal hosts.
+* **Scan net_1:** `ping 10.10.1.11` (Host A), `ping 10.10.1.13` (Host C)
+* **Scan net_3:** `ping 10.10.3.14` (Host D)
+
+### Phase 3: Lateral Movement
+1. **The Classic FTP Backdoor:** Found Host C on `net_1` or `net_3`? Hit it with the smiley face trigger (`USER backdoor:)`), pop a shell, and pivot further.
+2. **The Open Book:** Reach Host I (LDAP) on `net_2`. Connect anonymously and watch it dump every password on the network.
+3. **The Complete Takeover:** Your ultimate goal is **Host E (Backup)** at `.15`. It bridges all 4 internal networks. Sploit its SambaCry or Rsync traversal vulnerability, and you have God-mode access over the entire internal environment.
 
 ---
 
 ## 🎯 Exploit Scripts Included
 
-I threw in the Python and Ruby PoCs for a few of the more annoying exploits so you don't have to hunt them down. You can find them right inside the `/exploits/` folder of the respective host's container:
+I threw in the Python and Ruby PoCs for a few of the more annoying older exploits so you don't have to hunt them down. You can find them right inside the `/exploits/` folder of the respective host's container:
 
 * **Host A:** `MailGW/opensmtpd/47984.py`
 * **Host C:** `FTP/vsftpd/17491.rb` (Metasploit)
 * **Host D:** `SMB/samba/42060.py`
 * **Host H:** `WebDAV/httpd/50383.sh`
 
+*(Copy them from your host to the attacker container via `docker cp` to use them).*
+
 ---
 
-## ⚔️ Fun Attack Paths to Try
+### Shutting Down
 
-If you're wondering where to start, try these combinations:
+When you're finished experimenting, safely tear down the infrastructure to free up memory:
+```bash
+terraform destroy -auto-approve
+```
 
-1. **The Classic Backdoor:** Hit **Host C (FTP)** with the smiley face trigger, pop a shell, and pivot aggressively to the interior networks.
-2. **The Open Book:** Pivot from Host C over to **Host I (LDAP)**. Connect anonymously and watch it dump every password on the network.
-3. **The Web Entry:** Exploit the path traversal on **Host H (Apache)**, find sensitive credentials, and pivot to **Host E (Backup)**.
-4. **The Complete Takeover:** Since Host E bridges every single zone, once you compromise it with the SambaCry or Rsync traversal, you have God-mode access over the entire lab.
-
-Happy hacking! Have fun digging through the configs and watching these old CVEs break things! 
+Happy hacking! Have fun pivoting through the DMZ and watching these CVEs break things!

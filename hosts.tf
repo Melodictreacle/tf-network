@@ -1,28 +1,37 @@
 # ==============================================================
-# hosts.tf - All containers (Attacker + Hosts A-J)
+# hosts.tf - All containers (Attacker + DMZ + Hosts A-J)
 # ==============================================================
 #
-# 4-Network Architecture — Static IP Assignments:
+# 5-Network Architecture — Static IP Assignments:
 #
 # ┌─────────────────────────────────────────────────────────────┐
-# │  net_1 (10.10.1.0/24) — Perimeter / DMZ                    │
-# │    Attacker .10 │ A .11 │ C .13 │ E .15 │ F .16 │ H .18    │
+# │  DMZ (10.10.0.0/24) — Public-Facing Zone                   │
+# │    Attacker .10 │ Website .2 │ Firewall .3                  │
+# ├─────────────────────────────────────────────────────────────┤
+# │  net_1 (10.10.1.0/24) — Perimeter / Internal Edge          │
+# │    Firewall .3 │ A .11 │ C .13 │ E .15 │ F .16 │ H .18     │
 # │    J .20                                                    │
 # ├─────────────────────────────────────────────────────────────┤
 # │  net_2 (10.10.2.0/24) — Mail & Auth                        │
-# │    A .11 │ B .12 │ E .15 │ I .19                            │
+# │    Firewall .3 │ A .11 │ B .12 │ E .15 │ I .19             │
 # ├─────────────────────────────────────────────────────────────┤
 # │  net_3 (10.10.3.0/24) — Internal / Compute                 │
-# │    C .13 │ D .14 │ E .15                                    │
+# │    Firewall .3 │ C .13 │ D .14 │ E .15                     │
 # ├─────────────────────────────────────────────────────────────┤
 # │  net_4 (10.10.4.0/24) — Storage & Cloud                    │
-# │    E .15 │ F .16 │ G .17 │ H .18                            │
+# │    Firewall .3 │ E .15 │ F .16 │ G .17 │ H .18             │
 # └─────────────────────────────────────────────────────────────┘
+#
+# Attack Entry Points:
+#   1. Website (.maintenance.php backdoor) → DMZ shell → pivot
+#   2. Firewall (SSH root:toor) → bridges all networks
 #
 # Host Vulnerability Details:
 # +----------+--------------+------------------------+-----------------+
 # | Host     | Services     | Vulnerability          | CVE / Flaw      |
 # +----------+--------------+------------------------+-----------------+
+# | Website  | Apache+PHP   | cmd_injection_backdoor | Hidden Backdoor |
+# | Firewall | OpenSSH      | weak_root_password     | Config Flaw     |
 # | A MailGW | opensmtpd    | rce_auth_bypass        | CVE-2020-7247   |
 # | B MailSt | postfix      | mem_corruption_dos     | CVE-2011-1720   |
 # |          | dovecot      | unauth_access          | Config Flaw     |
@@ -39,8 +48,9 @@
 # +----------+--------------+------------------------+-----------------+
 
 # =================================================================
-#  ATTACKER - Kali Linux (from Docker Hub)
-#  Networks: net_1 (10.10.1.10)
+#  ATTACKER - Kali Linux
+#  Networks: DMZ ONLY (10.10.0.10)
+#  Must pivot through website or firewall to reach internal nets
 # =================================================================
 
 resource "docker_container" "attacker" {
@@ -51,8 +61,8 @@ resource "docker_container" "attacker" {
   command = ["sleep", "infinity"]
 
   networks_advanced {
-    name         = docker_network.net_1.name
-    ipv4_address = "10.10.1.10"
+    name         = docker_network.dmz.name
+    ipv4_address = "10.10.0.10"
   }
 
   labels {
@@ -62,6 +72,90 @@ resource "docker_container" "attacker" {
   labels {
     label = "role"
     value = "attacker"
+  }
+}
+
+# =================================================================
+#  WEBSITE - VulnCorp Company Website (Apache + PHP 7.4)
+#  Vulnerability: Hidden PHP command injection backdoor
+#    → /.maintenance.php?token=VulnCorp2024&cmd=<command>
+#  Networks: DMZ (10.10.0.2)
+# =================================================================
+
+resource "docker_container" "website" {
+  name     = "${var.project_name}-website"
+  hostname = "vulncorp-web"
+  image    = docker_image.website.image_id
+
+  networks_advanced {
+    name         = docker_network.dmz.name
+    ipv4_address = "10.10.0.2"
+  }
+
+  ports {
+    internal = 80
+    external = var.exposed_ports["website"]
+  }
+
+  labels {
+    label = "project"
+    value = var.project_name
+  }
+  labels {
+    label = "role"
+    value = "company-website"
+  }
+  labels {
+    label = "cves"
+    value = "Hidden-Backdoor"
+  }
+}
+
+# =================================================================
+#  FIREWALL - VulnCorp Gateway (Alpine + OpenSSH)
+#  Vulnerability: Weak SSH credentials (root:toor)
+#  Networks: DMZ + net_1 + net_2 + net_3 + net_4
+#  ** Bridges DMZ to ALL internal networks **
+# =================================================================
+
+resource "docker_container" "firewall" {
+  name       = "${var.project_name}-firewall"
+  hostname   = "vulncorp-fw"
+  image      = docker_image.firewall.image_id
+  privileged = true
+
+  networks_advanced {
+    name         = docker_network.dmz.name
+    ipv4_address = "10.10.0.3"
+  }
+  networks_advanced {
+    name         = docker_network.net_1.name
+    ipv4_address = "10.10.1.3"
+  }
+  networks_advanced {
+    name         = docker_network.net_2.name
+    ipv4_address = "10.10.2.3"
+  }
+  networks_advanced {
+    name         = docker_network.net_3.name
+    ipv4_address = "10.10.3.3"
+  }
+  networks_advanced {
+    name         = docker_network.net_4.name
+    ipv4_address = "10.10.4.3"
+  }
+
+  labels {
+    label = "project"
+    value = var.project_name
+  }
+  labels {
+    label = "role"
+    value = "firewall-gateway"
+  }
+  labels {
+    label = "cves"
+    value = "Config-Flaw-WeakSSH"
   }
 }
 
@@ -150,11 +244,6 @@ resource "docker_container" "host_c" {
     ipv4_address = "10.10.3.13"
   }
 
-  ports {
-    internal = 21
-    external = var.exposed_ports["ftp"]
-  }
-
   labels {
     label = "project"
     value = var.project_name
@@ -210,7 +299,7 @@ resource "docker_container" "host_d" {
 #  Config Flaw   : NFS no_root_squash
 #  Networks: net_1 (10.10.1.15), net_2 (10.10.2.15),
 #            net_3 (10.10.3.15), net_4 (10.10.4.15)
-#  ** Bridges ALL 4 networks **
+#  ** Bridges ALL 4 internal networks **
 # =================================================================
 
 resource "docker_container" "host_e" {
@@ -278,11 +367,6 @@ resource "docker_container" "host_f" {
     ipv4_address = "10.10.4.16"
   }
 
-  ports {
-    internal = 80
-    external = var.exposed_ports["owncloud"]
-  }
-
   env = [
     "OWNCLOUD_DB_HOST=host-g-storage",
     "OWNCLOUD_DB_NAME=owncloud",
@@ -328,15 +412,6 @@ resource "docker_container" "host_g" {
     ipv4_address = "10.10.4.17"
   }
 
-  ports {
-    internal = 9000
-    external = var.exposed_ports["minio_api"]
-  }
-  ports {
-    internal = 9001
-    external = var.exposed_ports["minio_ui"]
-  }
-
   volumes {
     volume_name    = docker_volume.minio_data.name
     container_path = "/data/minio"
@@ -380,11 +455,6 @@ resource "docker_container" "host_h" {
     ipv4_address = "10.10.4.18"
   }
 
-  ports {
-    internal = 80
-    external = var.exposed_ports["httpd"]
-  }
-
   labels {
     label = "project"
     value = var.project_name
@@ -413,11 +483,6 @@ resource "docker_container" "host_i" {
   networks_advanced {
     name         = docker_network.net_2.name
     ipv4_address = "10.10.2.19"
-  }
-
-  ports {
-    internal = 389
-    external = var.exposed_ports["ldap"]
   }
 
   volumes {
@@ -454,12 +519,6 @@ resource "docker_container" "host_j" {
   networks_advanced {
     name         = docker_network.net_1.name
     ipv4_address = "10.10.1.20"
-  }
-
-  ports {
-    internal = 53
-    external = var.exposed_ports["dns"]
-    protocol = "udp"
   }
 
   labels {

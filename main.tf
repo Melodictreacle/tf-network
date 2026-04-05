@@ -2,23 +2,27 @@
 # main.tf - Provider, Images, Networks, Volumes
 # ==============================================================
 #
-# 4-Network Architecture:
+# 5-Network Architecture (DMZ + 4 Internal):
 #
-#   net_1 (10.10.1.0/24) — Perimeter / DMZ
-#         Attacker, A (MailGW), C (FTP), E (Backup),
-#         F (Cloud), H (WebDAV), J (NetInf)
+#   dmz   (10.10.0.0/24) — Public-facing DMZ
+#         Attacker, Website (.2), Firewall (.3)
+#
+#   net_1 (10.10.1.0/24) — Perimeter / Internal Edge
+#         A (MailGW), C (FTP), E (Backup),
+#         F (Cloud), H (WebDAV), J (NetInf), Firewall
 #
 #   net_2 (10.10.2.0/24) — Mail & Auth
-#         A (MailGW), B (MailSt), E (Backup), I (LDAP)
+#         A (MailGW), B (MailSt), E (Backup), I (LDAP), Firewall
 #
 #   net_3 (10.10.3.0/24) — Internal / Compute
-#         C (FTP), D (SMB), E (Backup)
+#         C (FTP), D (SMB), E (Backup), Firewall
 #
 #   net_4 (10.10.4.0/24) — Storage & Cloud
-#         E (Backup), F (Cloud), G (ObjSto), H (WebDAV)
+#         E (Backup), F (Cloud), G (ObjSto), H (WebDAV), Firewall
 #
-# Host E (Backup) bridges ALL 4 networks — compromise it for
-# full lateral movement across the entire lab.
+# Firewall bridges DMZ to all 4 internal networks.
+# Host E bridges all 4 internal networks.
+# Attacker is on DMZ ONLY — must pivot through firewall or website.
 # ==============================================================
 
 terraform {
@@ -37,13 +41,29 @@ provider "docker" {
 }
 
 # =================================================================
-#  Docker Images — Kali from Hub, all others built from source
+#  Docker Images
 # =================================================================
 
 resource "docker_image" "attacker" {
   name = "vuln-lab-attacker-image"
   build {
     context    = "${path.module}/Attacker"
+    dockerfile = "Dockerfile"
+  }
+}
+
+resource "docker_image" "website" {
+  name = "vuln-lab-website"
+  build {
+    context    = "${path.module}/Website"
+    dockerfile = "Dockerfile"
+  }
+}
+
+resource "docker_image" "firewall" {
+  name = "vuln-lab-firewall"
+  build {
+    context    = "${path.module}/Firewall"
     dockerfile = "Dockerfile"
   }
 }
@@ -129,8 +149,23 @@ resource "docker_image" "host_j" {
 }
 
 # =================================================================
-#  4 Separate Networks
+#  5 Networks (DMZ + 4 Internal)
 # =================================================================
+
+resource "docker_network" "dmz" {
+  name   = "${var.project_name}-dmz"
+  driver = "bridge"
+
+  ipam_config {
+    subnet  = "10.10.0.0/24"
+    gateway = "10.10.0.1"
+  }
+
+  labels {
+    label = "zone"
+    value = "dmz"
+  }
+}
 
 resource "docker_network" "net_1" {
   name   = "${var.project_name}-net-1-perimeter"
