@@ -1,56 +1,36 @@
 # ==============================================================
-# outputs.tf - Lab access info & attack path reference
+# outputs.tf - Lab access info & VM IPs
 # ==============================================================
 
-# -- Network Zones
-output "network_zones" {
-  description = "Docker network zones (DMZ + 4 internal)"
+# -- Container/VM details
+output "lab_vms" {
+  description = "All lab VMs and their DHCP assigned management IPs (prior to static IP netplan)"
   value = {
-    dmz             = docker_network.dmz.name
-    net_1_perimeter = docker_network.net_1.name
-    net_2_mail_auth = docker_network.net_2.name
-    net_3_internal  = docker_network.net_3.name
-    net_4_storage   = docker_network.net_4.name
-  }
-}
-
-# -- Container Names
-output "containers" {
-  description = "All lab containers"
-  value = {
-    attacker                = docker_container.attacker.name
-    "website (VulnCorp)"    = docker_container.website.name
-    "firewall (Gateway)"    = docker_container.firewall.name
-    "host_a (Mail Gateway)" = docker_container.host_a.name
-    "host_b (Mail Store)"   = docker_container.host_b.name
-    "host_c (Legacy FTP)"   = docker_container.host_c.name
-    "host_d (Internal SMB)" = docker_container.host_d.name
-    "host_e (Backup)"       = docker_container.host_e.name
-    "host_f (Cloud Sync)"   = docker_container.host_f.name
-    "host_g (Storage)"      = docker_container.host_g.name
-    "host_h (WebDAV)"       = docker_container.host_h.name
-    "host_i (Directory)"    = docker_container.host_i.name
-    "host_j (Net Infra)"    = docker_container.host_j.name
+    attacker                = vmworkstation_vm.attacker.ip
+    "website (VulnCorp)"    = vmworkstation_vm.website.ip
+    "firewall (Gateway)"    = vmworkstation_vm.firewall.ip
+    "host_a (Mail Gateway)" = vmworkstation_vm.host_a.ip
+    "host_b (Mail Store)"   = vmworkstation_vm.host_b.ip
+    "host_c (Legacy FTP)"   = vmworkstation_vm.host_c.ip
+    "host_d (Internal SMB)" = vmworkstation_vm.host_d.ip
+    "host_e (Backup)"       = vmworkstation_vm.host_e.ip
+    "host_f (Cloud Sync)"   = vmworkstation_vm.host_f.ip
+    "host_g (Storage)"      = vmworkstation_vm.host_g.ip
+    "host_h (WebDAV)"       = vmworkstation_vm.host_h.ip
+    "host_i (Directory)"    = vmworkstation_vm.host_i.ip
+    "host_j (Net Infra)"    = vmworkstation_vm.host_j.ip
   }
 }
 
 # -- Attacker Access
 output "attacker_shell" {
-  description = "Command to enter the attacker container"
-  value       = "docker exec -it ${var.project_name}-attacker /bin/bash"
-}
-
-# -- Host-accessible URLs
-output "management_urls" {
-  description = "Services exposed to the Docker host"
-  value = {
-    "VulnCorp Website"       = "http://localhost:${var.exposed_ports["website"]}"
-  }
+  description = "Command to enter the attacker VM"
+  value       = "ssh ${var.ssh_user}@10.10.0.10"
 }
 
 # -- Static IP Quick Reference
-output "static_ips" {
-  description = "Static IP assignments per host per network"
+output "static_ips_after_provisioning" {
+  description = "Static IP assignments per host per network (After Netplan is applied)"
   value = <<-IPS
 
     ┌──────────────────────────────────────────────────────────────────────────────┐
@@ -82,7 +62,7 @@ output "attack_paths" {
   value = <<-MATRIX
 
     +-----------------------------------------------------------------------------+
-    |                 NETWORK ATTACK PATHS (DMZ + 4 Internal)                     |
+    |                 NETWORK ATTACK PATHS (DMZ + 4 Internal VMs)                 |
     +-----------------------------------------------------------------------------+
     |  STEP 1: Break into the DMZ                                                 |
     |  Attacker -> Website (http)     /.maintenance.php backdoor                  |

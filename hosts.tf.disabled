@@ -1,0 +1,380 @@
+# ==============================================================
+# hosts.tf - All VMware Virtual Machines
+# ==============================================================
+#
+# NOTE: The VMware Workstation API clones VMs and acquires an IP
+# via DHCP. Terraform connects via SSH to that initial IP, copies
+# the project files, and executes the provisioner script.
+#
+# IMPORTANT: The script execution will eventually apply a new static
+# netplan IP which causes the SSH connection to close. Terraform
+# might report a "connection closed" warning at the very end of 
+# provisioning each server, which is expected.
+# ==============================================================
+
+# ======== 1. Attacker VM ========
+resource "vmworkstation_vm" "attacker" {
+  sourceid     = var.base_vm_path
+  display_name = "${var.project_name}-attacker"
+  processors   = 2
+  memory       = 2048
+
+  connection {
+    type     = "ssh"
+    user     = var.ssh_user
+    password = var.ssh_password
+    host     = self.ip
+  }
+
+  provisioner "file" {
+    source      = "${path.module}/"
+    destination = "/tmp/tf-network"
+  }
+
+  provisioner "remote-exec" {
+    inline = [
+      "sudo rm -rf /opt/vulnlab && sudo mv /tmp/tf-network /opt/vulnlab",
+      "sudo chmod +x /opt/vulnlab/vm-scripts/*.sh",
+      "sudo bash -c '(sleep 3; /opt/vulnlab/vm-scripts/01-attacker.sh) > /tmp/provision.log 2>&1 &'"
+    ]
+  }
+}
+
+# ======== 2. Website VM ========
+resource "vmworkstation_vm" "website" {
+  sourceid     = var.base_vm_path
+  display_name = "${var.project_name}-website"
+  processors   = 1
+  memory       = 1024
+
+  connection {
+    type     = "ssh"
+    user     = var.ssh_user
+    password = var.ssh_password
+    host     = self.ip
+  }
+
+  provisioner "file" {
+    source      = "${path.module}/"
+    destination = "/tmp/tf-network"
+  }
+
+  provisioner "remote-exec" {
+    inline = [
+      "sudo rm -rf /opt/vulnlab && sudo mv /tmp/tf-network /opt/vulnlab",
+      "sudo chmod +x /opt/vulnlab/vm-scripts/*.sh",
+      "sudo bash -c '(sleep 3; /opt/vulnlab/vm-scripts/02-website.sh) > /tmp/provision.log 2>&1 &'"
+    ]
+  }
+}
+
+# ======== 3. Firewall VM ========
+resource "vmworkstation_vm" "firewall" {
+  sourceid     = var.base_vm_path
+  display_name = "${var.project_name}-firewall"
+  processors   = 1
+  memory       = 1024
+
+  connection {
+    type     = "ssh"
+    user     = var.ssh_user
+    password = var.ssh_password
+    host     = self.ip
+  }
+
+  provisioner "file" {
+    source      = "${path.module}/"
+    destination = "/tmp/tf-network"
+  }
+
+  provisioner "remote-exec" {
+    inline = [
+      "sudo rm -rf /opt/vulnlab && sudo mv /tmp/tf-network /opt/vulnlab",
+      "sudo chmod +x /opt/vulnlab/vm-scripts/*.sh",
+      "sudo bash -c '(sleep 3; /opt/vulnlab/vm-scripts/03-firewall.sh) > /tmp/provision.log 2>&1 &'"
+    ]
+  }
+}
+
+# ======== 4. Host A (MailGW) ========
+resource "vmworkstation_vm" "host_a" {
+  sourceid     = var.base_vm_path
+  display_name = "${var.project_name}-host-a"
+  processors   = 1
+  memory       = 1024
+
+  connection {
+    type     = "ssh"
+    user     = var.ssh_user
+    password = var.ssh_password
+    host     = self.ip
+  }
+
+  provisioner "file" {
+    source      = "${path.module}/"
+    destination = "/tmp/tf-network"
+  }
+
+  provisioner "remote-exec" {
+    inline = [
+      "sudo rm -rf /opt/vulnlab && sudo mv /tmp/tf-network /opt/vulnlab",
+      "sudo chmod +x /opt/vulnlab/vm-scripts/*.sh",
+      "sudo bash -c '(sleep 3; /opt/vulnlab/vm-scripts/04-host-a-mailgw.sh) > /tmp/provision.log 2>&1 &'"
+    ]
+  }
+}
+
+# ======== 5. Host B (Mail Store) ========
+resource "vmworkstation_vm" "host_b" {
+  sourceid     = var.base_vm_path
+  display_name = "${var.project_name}-host-b"
+  processors   = 1
+  memory       = 1024
+
+  connection {
+    type     = "ssh"
+    user     = var.ssh_user
+    password = var.ssh_password
+    host     = self.ip
+  }
+
+  provisioner "file" {
+    source      = "${path.module}/"
+    destination = "/tmp/tf-network"
+  }
+
+  provisioner "remote-exec" {
+    inline = [
+      "sudo rm -rf /opt/vulnlab && sudo mv /tmp/tf-network /opt/vulnlab",
+      "sudo chmod +x /opt/vulnlab/vm-scripts/*.sh",
+      "sudo bash -c '(sleep 3; /opt/vulnlab/vm-scripts/05-host-b-mailstore.sh) > /tmp/provision.log 2>&1 &'"
+    ]
+  }
+}
+
+# ======== 6. Host C (FTP) ========
+resource "vmworkstation_vm" "host_c" {
+  sourceid     = var.base_vm_path
+  display_name = "${var.project_name}-host-c"
+  processors   = 1
+  memory       = 1024
+
+  connection {
+    type     = "ssh"
+    user     = var.ssh_user
+    password = var.ssh_password
+    host     = self.ip
+  }
+
+  provisioner "file" {
+    source      = "${path.module}/"
+    destination = "/tmp/tf-network"
+  }
+
+  provisioner "remote-exec" {
+    inline = [
+      "sudo rm -rf /opt/vulnlab && sudo mv /tmp/tf-network /opt/vulnlab",
+      "sudo chmod +x /opt/vulnlab/vm-scripts/*.sh",
+      "sudo bash -c '(sleep 3; /opt/vulnlab/vm-scripts/06-host-c-ftp.sh) > /tmp/provision.log 2>&1 &'"
+    ]
+  }
+}
+
+# ======== 7. Host D (SMB) ========
+resource "vmworkstation_vm" "host_d" {
+  sourceid     = var.base_vm_path
+  display_name = "${var.project_name}-host-d"
+  processors   = 1
+  memory       = 1024
+
+  connection {
+    type     = "ssh"
+    user     = var.ssh_user
+    password = var.ssh_password
+    host     = self.ip
+  }
+
+  provisioner "file" {
+    source      = "${path.module}/"
+    destination = "/tmp/tf-network"
+  }
+
+  provisioner "remote-exec" {
+    inline = [
+      "sudo rm -rf /opt/vulnlab && sudo mv /tmp/tf-network /opt/vulnlab",
+      "sudo chmod +x /opt/vulnlab/vm-scripts/*.sh",
+      "sudo bash -c '(sleep 3; /opt/vulnlab/vm-scripts/07-host-d-smb.sh) > /tmp/provision.log 2>&1 &'"
+    ]
+  }
+}
+
+# ======== 8. Host E (Backup) ========
+resource "vmworkstation_vm" "host_e" {
+  sourceid     = var.base_vm_path
+  display_name = "${var.project_name}-host-e"
+  processors   = 1
+  memory       = 1024
+
+  connection {
+    type     = "ssh"
+    user     = var.ssh_user
+    password = var.ssh_password
+    host     = self.ip
+  }
+
+  provisioner "file" {
+    source      = "${path.module}/"
+    destination = "/tmp/tf-network"
+  }
+
+  provisioner "remote-exec" {
+    inline = [
+      "sudo rm -rf /opt/vulnlab && sudo mv /tmp/tf-network /opt/vulnlab",
+      "sudo chmod +x /opt/vulnlab/vm-scripts/*.sh",
+      "sudo bash -c '(sleep 3; /opt/vulnlab/vm-scripts/08-host-e-backup.sh) > /tmp/provision.log 2>&1 &'"
+    ]
+  }
+}
+
+# ======== 9. Host F (Cloud) ========
+resource "vmworkstation_vm" "host_f" {
+  sourceid     = var.base_vm_path
+  display_name = "${var.project_name}-host-f"
+  processors   = 1
+  memory       = 1024
+
+  # Depends on Host G providing the Object Store and DB
+  depends_on = [vmworkstation_vm.host_g]
+
+  connection {
+    type     = "ssh"
+    user     = var.ssh_user
+    password = var.ssh_password
+    host     = self.ip
+  }
+
+  provisioner "file" {
+    source      = "${path.module}/"
+    destination = "/tmp/tf-network"
+  }
+
+  provisioner "remote-exec" {
+    inline = [
+      "sudo rm -rf /opt/vulnlab && sudo mv /tmp/tf-network /opt/vulnlab",
+      "sudo chmod +x /opt/vulnlab/vm-scripts/*.sh",
+      "sudo bash -c '(sleep 3; /opt/vulnlab/vm-scripts/09-host-f-cloud.sh) > /tmp/provision.log 2>&1 &'"
+    ]
+  }
+}
+
+# ======== 10. Host G (Storage) ========
+resource "vmworkstation_vm" "host_g" {
+  sourceid     = var.base_vm_path
+  display_name = "${var.project_name}-host-g"
+  processors   = 1
+  memory       = 1500
+
+  connection {
+    type     = "ssh"
+    user     = var.ssh_user
+    password = var.ssh_password
+    host     = self.ip
+  }
+
+  provisioner "file" {
+    source      = "${path.module}/"
+    destination = "/tmp/tf-network"
+  }
+
+  provisioner "remote-exec" {
+    inline = [
+      "sudo rm -rf /opt/vulnlab && sudo mv /tmp/tf-network /opt/vulnlab",
+      "sudo chmod +x /opt/vulnlab/vm-scripts/*.sh",
+      "sudo bash -c '(sleep 3; /opt/vulnlab/vm-scripts/10-host-g-storage.sh) > /tmp/provision.log 2>&1 &'"
+    ]
+  }
+}
+
+# ======== 11. Host H (WebDAV) ========
+resource "vmworkstation_vm" "host_h" {
+  sourceid     = var.base_vm_path
+  display_name = "${var.project_name}-host-h"
+  processors   = 1
+  memory       = 1024
+
+  connection {
+    type     = "ssh"
+    user     = var.ssh_user
+    password = var.ssh_password
+    host     = self.ip
+  }
+
+  provisioner "file" {
+    source      = "${path.module}/"
+    destination = "/tmp/tf-network"
+  }
+
+  provisioner "remote-exec" {
+    inline = [
+      "sudo rm -rf /opt/vulnlab && sudo mv /tmp/tf-network /opt/vulnlab",
+      "sudo chmod +x /opt/vulnlab/vm-scripts/*.sh",
+      "sudo bash -c '(sleep 3; /opt/vulnlab/vm-scripts/11-host-h-webdav.sh) > /tmp/provision.log 2>&1 &'"
+    ]
+  }
+}
+
+# ======== 12. Host I (Directory) ========
+resource "vmworkstation_vm" "host_i" {
+  sourceid     = var.base_vm_path
+  display_name = "${var.project_name}-host-i"
+  processors   = 1
+  memory       = 1024
+
+  connection {
+    type     = "ssh"
+    user     = var.ssh_user
+    password = var.ssh_password
+    host     = self.ip
+  }
+
+  provisioner "file" {
+    source      = "${path.module}/"
+    destination = "/tmp/tf-network"
+  }
+
+  provisioner "remote-exec" {
+    inline = [
+      "sudo rm -rf /opt/vulnlab && sudo mv /tmp/tf-network /opt/vulnlab",
+      "sudo chmod +x /opt/vulnlab/vm-scripts/*.sh",
+      "sudo bash -c '(sleep 3; /opt/vulnlab/vm-scripts/12-host-i-ldap.sh) > /tmp/provision.log 2>&1 &'"
+    ]
+  }
+}
+
+# ======== 13. Host J (Network Infra) ========
+resource "vmworkstation_vm" "host_j" {
+  sourceid     = var.base_vm_path
+  display_name = "${var.project_name}-host-j"
+  processors   = 1
+  memory       = 1024
+
+  connection {
+    type     = "ssh"
+    user     = var.ssh_user
+    password = var.ssh_password
+    host     = self.ip
+  }
+
+  provisioner "file" {
+    source      = "${path.module}/"
+    destination = "/tmp/tf-network"
+  }
+
+  provisioner "remote-exec" {
+    inline = [
+      "sudo rm -rf /opt/vulnlab && sudo mv /tmp/tf-network /opt/vulnlab",
+      "sudo chmod +x /opt/vulnlab/vm-scripts/*.sh",
+      "sudo bash -c '(sleep 3; /opt/vulnlab/vm-scripts/13-host-j-netinfra.sh) > /tmp/provision.log 2>&1 &'"
+    ]
+  }
+}

@@ -1,11 +1,48 @@
 # ==============================================================
-# variables.tf — Vulnerability Lab (Docker)
+# variables.tf — Vulnerability Lab (VMware Workstation)
 # ==============================================================
 
-variable "docker_host" {
-  description = "Docker daemon socket"
+variable "vmw_user" {
+  description = "VMware Workstation REST API Username"
   type        = string
-  default     = "npipe:////./pipe/docker_engine"
+  default     = "admin"
+}
+
+variable "vmw_password" {
+  description = "VMware Workstation REST API Password"
+  type        = string
+  default     = "password"
+}
+
+variable "vmw_url" {
+  description = "VMware Workstation REST API URL (usually http://127.0.0.1:8697/api)"
+  type        = string
+  default     = "http://127.0.0.1:8697/api"
+}
+
+variable "base_vm_path" {
+  description = "Absolute path to your clean Ubuntu 20.04 base .vmx file"
+  type        = string
+  # Example: "C:\\Virtual Machines\\Ubuntu-20.04-Base\\Ubuntu-20.04-Base.vmx"
+  default     = "C:\\Virtual Machines\\Ubuntu-20.04-Base\\Ubuntu-20.04-Base.vmx"
+}
+
+variable "deploy_path" {
+  description = "Directory where the new lab VMs will be stored"
+  type        = string
+  default     = "C:\\Virtual Machines\\VulnLab"
+}
+
+variable "ssh_user" {
+  description = "Username for the base Ubuntu VM"
+  type        = string
+  default     = "ubuntu"
+}
+
+variable "ssh_password" {
+  description = "Password for the base Ubuntu VM"
+  type        = string
+  default     = "ubuntu"
 }
 
 variable "project_name" {
@@ -18,62 +55,4 @@ variable "lab_domain" {
   description = "Internal DNS domain for the lab"
   type        = string
   default     = "vuln-lab.local"
-}
-
-# ── Image versions (pinned to vulnerable releases) ───────────
-
-variable "owncloud_version" {
-  description = "OwnCloud version (CVE-2023-49103)"
-  type        = string
-  default     = "10.13"
-}
-
-variable "minio_version" {
-  description = "MinIO version (CVE-2023-28432)"
-  type        = string
-  default     = "RELEASE.2023-03-13T19-46-17Z"
-}
-
-variable "httpd_version" {
-  description = "Apache httpd version (CVE-2021-41773)"
-  type        = string
-  default     = "2.4.49"
-}
-
-variable "openldap_version" {
-  description = "OpenLDAP version (null DN auth bypass)"
-  type        = string
-  default     = "1.5.0"
-}
-
-# ── Credentials ───────────────────────────────────────────────
-
-variable "ldap_admin_password" {
-  description = "OpenLDAP admin password"
-  type        = string
-  default     = "admin123"
-  sensitive   = true
-}
-
-variable "minio_root_user" {
-  description = "MinIO root user"
-  type        = string
-  default     = "minioadmin"
-}
-
-variable "minio_root_password" {
-  description = "MinIO root password"
-  type        = string
-  default     = "minioadmin123"
-  sensitive   = true
-}
-
-# ── Host port mappings (host → container) ─────────────────────
-
-variable "exposed_ports" {
-  description = "Ports exposed to the Docker host for management access"
-  type        = map(number)
-  default = {
-    website   = 8888   # DMZ   - VulnCorp Website
-  }
 }
